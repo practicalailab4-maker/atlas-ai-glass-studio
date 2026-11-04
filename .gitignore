@@ -256,3 +256,5 @@ frontend/glass_studio_v[0-9]*.html
 .vscode/
 # Exclude generated sample invoices
 sample_invoices/*.pdf
+# V23 chart refinements
+!frontend/glass_studio_v23.html

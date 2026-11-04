@@ -729,3 +729,12 @@ def glass_studio():
         / "glass_studio_v22.html"
     )
     return FileResponse(html_path)
+# V23 — chart refinement preview; V22 route remains unchanged.
+@app.get("/glass-studio-v23")
+def glass_studio_v23():
+    html_path = (
+        Path(__file__).resolve().parent.parent
+        / "frontend"
+        / "glass_studio_v23.html"
+    )
+    return FileResponse(html_path)
