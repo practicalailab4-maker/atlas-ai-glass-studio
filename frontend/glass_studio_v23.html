@@ -365,6 +365,30 @@ table{font-size:17px}.pill{font-size:15px}.barrow{font-size:16px}
 </div>
 
 
+<div class="v21-overlay" id="v23ReviewOverlay" hidden>
+ <section class="v21-modal glass" role="dialog" aria-modal="true" aria-labelledby="v23ReviewTitle">
+  <div class="v21-modal-top">
+   <div>
+    <div class="eyebrow">Atlas · Invoice approval</div>
+    <h2 id="v23ReviewTitle">Review invoice</h2>
+    <p>Inspect the invoice before approving or rejecting it.</p>
+   </div>
+   <button type="button" class="v21-cancel" id="v23ReviewClose" aria-label="Close review">✕</button>
+  </div>
+  <p class="v22-payment-summary" id="v23ReviewSummary"></p>
+  <div id="v23ReviewDetails"></div>
+  <label class="v22-modal-field">Rejection reason (required when rejecting)
+   <textarea id="v23ReviewReason" maxlength="1000" rows="3" placeholder="Explain why this invoice is being rejected"></textarea>
+  </label>
+  <p class="v22-warning">Approval authorizes the invoice for payment recording. It does not transfer money.</p>
+  <p class="v21-upload-status" id="v23ReviewStatus" role="status" aria-live="polite"></p>
+  <div class="v21-modal-actions">
+   <button type="button" class="v21-cancel" id="v23ReviewCancel">Cancel</button>
+   <button type="button" class="v21-cancel" id="v23ReviewReject">Reject</button>
+   <button type="button" class="v22-confirm" id="v23ReviewApprove">Approve</button>
+  </div>
+ </section>
+</div>
 <div class="v21-overlay" id="v22PaymentOverlay" hidden>
  <section class="v21-modal glass" role="dialog" aria-modal="true" aria-labelledby="v22PaymentTitle">
   <div class="v21-modal-top"><div><div class="eyebrow">Atlas · Payment recording</div><h2 id="v22PaymentTitle">Mark invoice as paid</h2><p>This records an existing payment. It does not transfer money.</p></div><button type="button" class="v21-close" id="v22PaymentClose" aria-label="Close payment window">✕</button></div>
@@ -386,6 +410,230 @@ table{font-size:17px}.pill{font-size:15px}.barrow{font-size:16px}
  </section>
 </div>
 <script>
+/* V23: Review window close controls. */
+(()=>{
+ const overlay=document.getElementById('v23ReviewOverlay');
+ const close=()=>{
+  if(overlay.dataset.submitting==='true')return;
+  overlay.hidden=true;
+  delete overlay.dataset.reviewId;
+  overlay.dataset.reviewReady='false';
+  document.getElementById('v23ReviewSummary').textContent='';
+  document.getElementById('v23ReviewDetails').replaceChildren();
+  document.getElementById('v23ReviewStatus').textContent='';
+  document.getElementById('v23ReviewReason').value='';
+ };
+
+ document.getElementById('v23ReviewClose').addEventListener('click',close);
+ document.getElementById('v23ReviewCancel').addEventListener('click',close);
+
+ overlay.addEventListener('click',e=>{
+  if(e.target===overlay)close();
+ });
+
+ document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!overlay.hidden)close();
+ });
+})();
+
+/* V23: Review decision confirmation preparation. */
+function v23ConfirmReviewDecision(decision){
+ const overlay=document.getElementById('v23ReviewOverlay');
+ const status=document.getElementById('v23ReviewStatus');
+ const reason=document.getElementById('v23ReviewReason').value.trim();
+
+ if(overlay.hidden||overlay.dataset.submitting==='true')return false;
+
+ if(decision==='rejected'&&!reason){
+  status.className='v21-upload-status error';
+  status.textContent='Enter a rejection reason before continuing.';
+  document.getElementById('v23ReviewReason').focus();
+  return false;
+ }
+
+ const action=decision==='approved'?'APPROVE':'REJECT';
+ const explanation=decision==='rejected'
+  ?'\\nReason: '+reason
+  :'';
+
+ return window.confirm(
+  action+' this invoice?'+explanation+
+  '\\n\\nThis decision will change its status and cannot be reversed in this review workflow.'
+ );
+}
+
+/* V23: Protected review decision submission. */
+async function v23SubmitReviewDecision(decision){
+ const overlay=document.getElementById('v23ReviewOverlay');
+ const status=document.getElementById('v23ReviewStatus');
+ const approve=document.getElementById('v23ReviewApprove');
+ const reject=document.getElementById('v23ReviewReject');
+ const id=Number(overlay.dataset.reviewId);
+
+ if(overlay.hidden||overlay.dataset.reviewReady!=='true')return;
+ if(overlay.dataset.submitting==='true')return;
+ if(!Number.isSafeInteger(id)||id<=0)return;
+ if(decision!=='approved'&&decision!=='rejected')return;
+ if(!v23ConfirmReviewDecision(decision))return;
+
+ const reason=document.getElementById('v23ReviewReason').value.trim();
+ overlay.dataset.submitting='true';
+ approve.disabled=true;
+ reject.disabled=true;
+ status.className='v21-upload-status';
+ status.textContent='Saving review decision…';
+
+ try{
+  const response=await fetch('/invoices/'+id+'/status',{
+   method:'PATCH',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({status:decision,reason})
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok){
+   if(response.status===409){
+    overlay.dataset.reviewReady='false';
+   }
+   const error=new Error(
+    typeof result.detail==='string'
+     ?result.detail
+     :'Review API returned HTTP '+response.status
+   );
+   error.httpStatus=response.status;
+   throw error;
+  }
+
+  status.className='v21-upload-status success';
+  status.textContent='Decision saved. Refreshing invoice register…';
+  await connect();
+
+  if(loadState!=='ready'){
+   throw new Error('Decision saved, but the register could not refresh. Reload the page.');
+  }
+
+  overlay.dataset.reviewReady='false';
+  status.textContent='Decision saved and invoice register refreshed.';
+ }catch(error){
+  status.className='v21-upload-status error';
+  status.textContent=error.message;
+ }finally{
+  overlay.dataset.submitting='false';
+  const canRetry=overlay.dataset.reviewReady==='true'
+   && !overlay.hidden
+   && overlay.dataset.reviewId===String(id)
+   && window.location.hostname==='127.0.0.1'
+   && window.location.port==='8004';
+  approve.disabled=!canRetry;
+  reject.disabled=!canRetry;
+ }
+}
+
+/* V23: Review decision button handlers. */
+document.getElementById('v23ReviewApprove').addEventListener('click',()=>{
+ v23SubmitReviewDecision('approved');
+});
+
+document.getElementById('v23ReviewReject').addEventListener('click',()=>{
+ v23SubmitReviewDecision('rejected');
+});
+
+/* V23: Read-only invoice review details. */
+document.addEventListener('click', async e => {
+ const button=e.target.closest('[data-review-id]');
+ if(!button)return;
+
+ const id=Number(button.dataset.reviewId);
+ if(!Number.isSafeInteger(id)||id<=0)return;
+
+ const overlay=document.getElementById('v23ReviewOverlay');
+ const summary=document.getElementById('v23ReviewSummary');
+ const details=document.getElementById('v23ReviewDetails');
+ const status=document.getElementById('v23ReviewStatus');
+
+ if(overlay.dataset.submitting==='true')return;
+ overlay.dataset.reviewId=String(id);
+ overlay.dataset.reviewReady='false';
+ overlay.hidden=false;
+ summary.textContent='Loading invoice…';
+ details.replaceChildren();
+ status.textContent='';
+ document.getElementById('v23ReviewReason').value='';
+ document.getElementById('v23ReviewApprove').disabled=true;
+ document.getElementById('v23ReviewReject').disabled=true;
+
+ try{
+  const response=await fetch('/invoices/'+id);
+  const invoice=await response.json();
+  if(!response.ok)throw new Error('Invoice details could not be loaded.');
+
+  if(invoice.status!=='needs_review'){
+   throw new Error('This invoice is no longer awaiting review.');
+  }
+
+  summary.textContent=[
+   invoice.vendor_name,
+   invoice.invoice_number,
+   invoice.currency+' '+invoice.total,
+   invoice.status
+  ].join(' · ');
+
+  const heading=(text)=>{
+   const h=document.createElement('h3');
+   h.textContent=text;
+   return h;
+  };
+
+  const issues=document.createElement('div');
+  issues.appendChild(heading('Validation issues'));
+  const issueList=document.createElement('ul');
+  for(const issue of invoice.validation_issues||[]){
+   const li=document.createElement('li');
+   li.textContent=issue;
+   issueList.appendChild(li);
+  }
+  if(!issueList.children.length){
+   const li=document.createElement('li');
+   li.textContent='No validation issues recorded.';
+   issueList.appendChild(li);
+  }
+  issues.appendChild(issueList);
+
+  const history=document.createElement('div');
+  history.appendChild(heading('Activity history'));
+  const historyList=document.createElement('ul');
+  for(const entry of invoice.activity_history||[]){
+   const li=document.createElement('li');
+   li.textContent=[entry.created_at,entry.action,entry.details]
+    .filter(Boolean).join(' · ');
+   historyList.appendChild(li);
+  }
+  if(!historyList.children.length){
+   const li=document.createElement('li');
+   li.textContent='No activity recorded.';
+   historyList.appendChild(li);
+  }
+  history.appendChild(historyList);
+
+  if(overlay.hidden||overlay.dataset.reviewId!==String(id))return;
+  details.replaceChildren(issues,history);
+  overlay.dataset.reviewReady='true';
+  const isolatedTest=window.location.hostname==='127.0.0.1'
+   && window.location.port==='8004';
+  document.getElementById('v23ReviewApprove').disabled=!isolatedTest;
+  document.getElementById('v23ReviewReject').disabled=!isolatedTest;
+  status.className='v21-upload-status';
+  status.textContent=isolatedTest
+   ?'Isolated test mode · Confirm your decision before submitting.'
+   :'Review details loaded. Decision controls are not active yet.';
+ }catch(error){
+  if(overlay.hidden||overlay.dataset.reviewId!==String(id))return;
+  summary.textContent='Unable to load invoice';
+  status.textContent=error.message;
+  status.className='v21-upload-status error';
+ }
+});
+
 /* V11: read-only connection to the existing FastAPI /invoices endpoint. */
 let invoices=[];
 let loadState='loading';
@@ -418,7 +666,7 @@ function show(view){
   const label=atlasFilter==='overdue'?'Overdue Invoices':atlasFilter==='review'?'Invoices Needing Review':'Invoice Register';
   const value=rows.reduce((sum,i)=>sum+i.amount,0);
   title.textContent=label;sub.textContent=rows.length+' of '+invoices.length+' invoices · Live Atlas data';
-  display.innerHTML='<h2>'+label+'</h2><div class="hint">Payment actions available for approved invoices · '+rows.length+' invoice(s) · '+fmt(value)+' total'+(atlasFilter!=='all'?' · <button type="button" id="atlasClearFilter" class="v16-clear">Show all invoices</button>':'')+'</div><div class="tablewrap"><table><thead><tr><th>Vendor</th><th>Invoice #</th><th>Amount</th><th>Status</th><th>Payment</th></tr></thead><tbody>'+(rows.length?rows.map(i=>'<tr><td>'+esc(i.vendor)+'</td><td>'+esc(i.number)+'</td><td class="money">'+fmt(i.amount)+'</td><td><span class="pill '+(review(i)?'warn':'')+'">'+esc(overdue(i)?'Overdue · '+statusLabel(i.status):statusLabel(i.status))+'</span></td><td>'+(i.status==='approved'?'<button type="button" class="v22-pay-btn" data-pay-id="'+i.id+'">Mark as Paid</button>':i.status==='paid'?'<span class="v22-paid-label">✓ Paid</span>':'<span class="v22-not-ready">—</span>')+'</td></tr>').join(''):'<tr><td colspan="5">No matching invoices in the Atlas database.</td></tr>')+'</tbody></table></div>';
+  display.innerHTML='<h2>'+label+'</h2><div class="hint">Payment actions available for approved invoices · '+rows.length+' invoice(s) · '+fmt(value)+' total'+(atlasFilter!=='all'?' · <button type="button" id="atlasClearFilter" class="v16-clear">Show all invoices</button>':'')+'</div><div class="tablewrap"><table><thead><tr><th>Vendor</th><th>Invoice #</th><th>Amount</th><th>Status</th><th>Payment</th></tr></thead><tbody>'+(rows.length?rows.map(i=>'<tr><td>'+esc(i.vendor)+'</td><td>'+esc(i.number)+'</td><td class="money">'+fmt(i.amount)+'</td><td><span class="pill '+(review(i)?'warn':'')+'">'+esc(overdue(i)?'Overdue · '+statusLabel(i.status):statusLabel(i.status))+'</span></td><td>'+(i.status==='needs_review'?'<button type="button" class="v22-pay-btn" data-review-id="'+i.id+'">Review</button>':i.status==='approved'?'<button type="button" class="v22-pay-btn" data-pay-id="'+i.id+'">Mark as Paid</button>':i.status==='paid'?'<span class="v22-paid-label">✓ Paid</span>':'<span class="v22-not-ready">—</span>')+'</td></tr>').join(''):'<tr><td colspan="5">No matching invoices in the Atlas database.</td></tr>')+'</tbody></table></div>';
   const clear=document.getElementById('atlasClearFilter');if(clear)clear.addEventListener('click',()=>{atlasFilter='all';atlasContext=null;show('table');});
   if(atlasFilter==='overdue'){message.textContent='I found '+rows.length+' overdue invoice'+(rows.length===1?'':'s')+' totaling '+fmt(value)+'.';setActivity('Overdue invoices displayed',rows.length+' invoices · '+fmt(value));}
   else if(atlasFilter==='review'){message.textContent='I found '+rows.length+' invoice'+(rows.length===1?'':'s')+' needing review, totaling '+fmt(value)+'.';setActivity('Review queue displayed',rows.length+' invoices · '+fmt(value));}

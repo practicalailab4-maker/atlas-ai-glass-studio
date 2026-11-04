@@ -246,14 +246,14 @@ def get_invoice(invoice_id: int):
 
 
 
-def update_invoice_status(invoice_id: int, status: str):
+def update_invoice_status(invoice_id: int, status: str, reason: str = ""):
     with sqlite3.connect(DATABASE_PATH) as connection:
         cursor = connection.execute(
             """
             UPDATE invoices
             SET status = ?
             WHERE id = ?
-            AND status != 'paid'
+            AND status = 'needs_review'
             """,
             (status, invoice_id)
         )
@@ -264,7 +264,7 @@ def update_invoice_status(invoice_id: int, status: str):
                 INSERT INTO invoice_activity (invoice_id, action, details)
                 VALUES (?, ?, ?)
                 """,
-                (invoice_id, "status_changed", f"Status changed to {status}")
+                (invoice_id, "status_changed", f"Status changed to {status}" + (f" | Reason: {reason.strip()}" if reason.strip() else ""))
             )
 
         connection.commit()

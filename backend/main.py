@@ -19,7 +19,9 @@ from backend.database import DATA_DIR, list_invoices, get_invoice, update_invoic
 from backend.ap_issue_detector import detect_ap_issues
 
 from contextlib import asynccontextmanager
-
+class InvoiceDecision(BaseModel):
+    status: str
+    reason: str = Field(default="", max_length=1000)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -278,7 +280,18 @@ def get_invoice_by_id(invoice_id: int):
     return get_invoice(invoice_id)
 
 @app.patch("/invoices/{invoice_id}/status")
-def change_invoice_status(invoice_id: int, status: str):
+def change_invoice_status(invoice_id: int, decision: InvoiceDecision):
+    if os.getenv("ATLAS_ENABLE_REVIEW_DECISIONS") != "true":
+        raise HTTPException(
+            status_code=403,
+            detail="Invoice review decisions are disabled on this server"
+        )
+
+    status = decision.status
+
+    if status == "rejected" and not decision.reason.strip():
+        raise HTTPException(status_code=400, detail="Rejection reason is required")
+
     if status not in ("needs_review", "approved", "rejected"):
         raise HTTPException(
             status_code=400,
@@ -299,12 +312,24 @@ def change_invoice_status(invoice_id: int, status: str):
             detail="Paid invoices cannot have their status changed"
         )
 
-    updated = update_invoice_status(invoice_id, status)
+    if invoice.get("status") != "needs_review":
+        raise HTTPException(
+            status_code=409,
+            detail="Only invoices needing review can be approved or rejected"
+        )
+
+    if status not in ("approved", "rejected"):
+        raise HTTPException(
+            status_code=400,
+            detail="Review decisions must be approved or rejected"
+        )
+
+    updated = update_invoice_status(invoice_id, status, decision.reason)
 
     if not updated:
         raise HTTPException(
-            status_code=404,
-            detail="Invoice not found"
+            status_code=409,
+            detail="Invoice is no longer awaiting review"
         )
 
     return {"invoice_id": invoice_id, "status": status}
@@ -723,6 +748,16 @@ from fastapi.responses import FileResponse
 
 @app.get("/glass-studio")
 def glass_studio():
+    html_path = (
+        Path(__file__).resolve().parent.parent
+        / "frontend"
+        / "glass_studio_v23.html"
+    )
+    return FileResponse(html_path)
+
+# Preserve V22 as a dedicated rollback route.
+@app.get("/glass-studio-v22")
+def glass_studio_v22():
     html_path = (
         Path(__file__).resolve().parent.parent
         / "frontend"
