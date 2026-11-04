@@ -218,3 +218,41 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Atlas local data and invoice records
+/data/
+.DS_Store
+# Private API credentials
+.env
+
+# Atlas development backups
+backend/main_before_elevenlabs.py
+frontend/index_before_atlas_avatar.html
+frontend/index.html[ ]
+# Atlas Glass Studio — private files
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.pdf
+
+# Local development backups
+*.backup
+*.backup-*
+*.bak
+*~
+*.pyc
+
+# Previous Glass Studio versions
+frontend/glass_studio_v[0-9]*.html
+!frontend/glass_studio_v22.html
+
+# macOS and editor files
+.DS_Store
+.vscode/
+# Exclude generated sample invoices
+sample_invoices/*.pdf

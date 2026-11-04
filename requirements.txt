@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+openai
+pydantic
+pypdf
+openpyxl
+python-dotenv
+elevenlabs
+num2words

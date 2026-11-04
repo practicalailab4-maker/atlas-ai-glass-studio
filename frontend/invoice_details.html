@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <style>
+        #reject-invoice {
+            background-color: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+}
+        #approve-invoice {
+            background-color: #16a34a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 10px;
+}
+        #view-original-pdf:hover {
+            background-color: #1d4ed8;
+}
+        #view-original-pdf {
+            padding: 12px 20px;
+            margin-top: 16px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+}
+        #source-document {
+            background-color: white;
+            padding: 24px 32px;
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+            max-width: 800px;
+            color: #475569;
+            font-size: 14px;
+}
+        #invoice-details:hover {
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10);
+}
+        h2 {
+            color: #334155;
+            font-size: 20px;
+            margin-top: 8px;
+            margin-bottom: 16px;
+}
+        #overdue-warning:not(:empty) {
+            background-color: #fee2e2;
+            color: #991b1b;
+            padding: 14px 18px;
+            border-radius: 8px;
+            border: 1px solid #fecaca;
+            margin-bottom: 20px;
+            max-width: 828px;
+            font-weight: 600;
+}
+        #invoice-status-badge {
+            display: inline-block;
+            background-color: #fef3c7;
+            color: #92400e;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 20px;
+}
+        #invoice-status-badge.status-approved {
+            background-color: #dcfce7;
+            color: #166534;
+}
+        #invoice-status-badge.status-rejected {
+            background-color: #fee2e2;
+            color: #991b1b;
+}
+        #back-dashboard {
+            display: inline-block;
+            color: #2563eb;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 24px;
+}
+#back-dashboard:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+        h1 {
+            color: #1e293b;
+            font-size: 28px;
+            margin-bottom: 24px;
+}
+        #invoice-details {
+            background-color: white;
+            padding: 32px;
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+            max-width: 800px;
+            line-height: 1.8;
+}
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7fb;
+            color: #1e293b;
+            padding: 40px;
+            margin: 0;
+        }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas | Invoice Details</title>
+</head>
+
+<body>
+    <h1>ATLAS — Invoice Details</h1>
+    <a href="/dashboard" id="back-dashboard">
+        ← Back to Dashboard
+    </a>
+<div id="invoice-status-badge">
+    Needs Review
+</div>
+<div id="invoice-actions">
+    <button type="button" id="approve-invoice">Approve Invoice</button>
+    <button type="button" id="reject-invoice">Reject Invoice</button>
+</div>
+<div id="overdue-warning"></div>
+
+
+<h2>Invoice Information</h2>
+<div id="invoice-details" style="white-space: pre-line;">
+    Loading invoice details...
+</div>
+<h2>Validation Issues</h2>
+<div id="validation-issues">
+    Loading validation issues...
+</div>
+<h2>Activity History</h2>
+<div id="activity-history">
+    Loading activity history...
+</div>
+<h2>Source Document</h2>
+<div id="source-document">
+    Loading source document...
+</div>
+<button type="button" id="view-original-pdf">
+    View Original PDF
+</button>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+            const invoiceId = params.get("id");
+
+            document.getElementById("approve-invoice").addEventListener("click", async () => {
+                if (!confirm("Are you sure you want to approve this invoice?")) return;
+                const response = await fetch(
+                    `/invoices/${invoiceId}/status?status=approved`,
+                    { method: "PATCH" }
+                );
+
+                if (response.ok) {
+                    alert("Invoice approved successfully!");
+                    location.reload();
+                } else {
+                    alert("Unable to approve invoice.");
+                }
+            });
+
+            // ADD THE REJECT HANDLER HERE
+            document.getElementById("reject-invoice").addEventListener("click", async () => {
+                if (!confirm("Are you sure you want to reject this invoice?")) {
+                    return;
+                }
+
+                const response = await fetch(
+                    `/invoices/${invoiceId}/status?status=rejected`,
+                    { method: "PATCH" }
+                );
+
+                if (response.ok) {
+                    alert("Invoice rejected successfully!");
+                    location.reload();
+                } else {
+                    alert("Unable to reject invoice.");
+                }
+            });
+
+        document.getElementById("view-original-pdf").addEventListener("click", () => {
+                window.open(`/invoices/${invoiceId}/pdf?refresh=${Date.now()}`, "_blank");
+            });
+
+        console.log("Invoice ID:", invoiceId);
+        async function loadInvoiceDetails() {
+                const response = await fetch(`/invoices/${invoiceId}`);
+                const invoice = await response.json();
+
+                const validationIssues = document.getElementById("validation-issues");
+
+                if (invoice.validation_issues && invoice.validation_issues.length > 0) {
+                    const issueList = document.createElement("ul");
+
+                    invoice.validation_issues.forEach(issue => {
+                        const listItem = document.createElement("li");
+                        listItem.textContent = issue;
+                        issueList.appendChild(listItem);
+                    });
+
+                    validationIssues.replaceChildren(issueList);
+                } else {
+                    validationIssues.textContent = "No validation issues found.";
+                }
+            const activityHistory = document.getElementById("activity-history");
+
+            if (invoice.activity_history && invoice.activity_history.length > 0) {
+                const activityList = document.createElement("ul");
+
+                invoice.activity_history.forEach(activity => {
+                    const listItem = document.createElement("li");
+                    listItem.textContent =
+                        `${activity.created_at} — ${activity.details || activity.action}`;
+                    activityList.appendChild(listItem);
+                });
+
+                activityHistory.replaceChildren(activityList);
+            } else {
+                activityHistory.textContent = "No activity recorded yet.";
+            }
+                console.log("Invoice details:", invoice);
+                const sourceFilename = invoice.source_file
+                ? invoice.source_file.split(/[\\/]/).pop()
+                : "Not available";
+
+            document.getElementById("source-document").textContent =
+                `PDF File: ${sourceFilename}`;
+                const today = new Date().toISOString().slice(0, 10);
+
+            if (
+                invoice.due_date &&
+                invoice.due_date < today &&
+                invoice.status === "needs_review"
+            ) {
+                document.getElementById("overdue-warning").textContent =
+                    "⚠️ This invoice is overdue and requires review.";
+            }
+                document.getElementById("invoice-status-badge").textContent =
+                invoice.status === "needs_review" ? "Needs Review" :
+                    invoice.status === "approved" ? "Approved" :
+                        invoice.status === "rejected" ? "Rejected" :
+                            (invoice.status || "Unknown");
+                    if (invoice.status === "approved") {
+                        document.getElementById("invoice-status-badge").classList.add("status-approved");
+                        document.getElementById("approve-invoice").style.display = "none";
+                    }
+
+                if (invoice.status === "rejected") {
+                document.getElementById("invoice-status-badge").classList.add("status-rejected");
+                document.getElementById("reject-invoice").style.display = "none";
+            }
+            document.getElementById("invoice-details").textContent =
+                `Invoice Number: ${invoice.invoice_number}\nVendor: ${invoice.vendor_name}\nInvoice Date: ${invoice.invoice_date || "--"}\nDue Date: ${invoice.due_date || "--"}\nTotal: ${invoice.currency || "USD"} ${Number(invoice.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nStatus: ${invoice.status === "needs_review" ? "Needs Review" : invoice.status === "approved" ? "Approved" : invoice.status === "rejected" ? "Rejected" : (invoice.status || "Unknown") }\nSubtotal: ${invoice.currency || "USD"} ${Number(invoice.subtotal || 0).toFixed(2)}\nTax: ${invoice.currency || "USD"} ${Number(invoice.tax || 0).toFixed(2)}\nBill To: ${invoice.bill_to || "--"}`;
+            }
+
+            loadInvoiceDetails();
+    </script>
+</body>
+
+</html>
