@@ -1,4 +1,4 @@
-# Atlas AI Glass Studio V22
+# Atlas AI Glass Studio
 
 **Atlas AI Glass Studio** is a local-first, AI-assisted Accounts Payable application built with Python, FastAPI, SQLite, HTML, and JavaScript.
 
