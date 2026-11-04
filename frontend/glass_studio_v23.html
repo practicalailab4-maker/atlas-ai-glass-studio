@@ -523,7 +523,7 @@ async function v23SubmitReviewDecision(decision){
    && !overlay.hidden
    && overlay.dataset.reviewId===String(id)
    && window.location.hostname==='127.0.0.1'
-   && window.location.port==='8004';
+   && ['8003','8004'].includes(window.location.port);
   approve.disabled=!canRetry;
   reject.disabled=!canRetry;
  }
@@ -619,7 +619,7 @@ document.addEventListener('click', async e => {
   details.replaceChildren(issues,history);
   overlay.dataset.reviewReady='true';
   const isolatedTest=window.location.hostname==='127.0.0.1'
-   && window.location.port==='8004';
+   && ['8003','8004'].includes(window.location.port);
   document.getElementById('v23ReviewApprove').disabled=!isolatedTest;
   document.getElementById('v23ReviewReject').disabled=!isolatedTest;
   status.className='v21-upload-status';
