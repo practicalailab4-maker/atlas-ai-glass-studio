@@ -639,6 +639,10 @@ let invoices=[];
 let loadState='loading';
 let activeView='table';
 let atlasFilter='all';
+let invoiceStatusFilter='all';
+let invoiceOverdueOnly=false;
+let invoiceIssuesOnly=false;
+let invoiceSearch='';
 const display=document.getElementById('display');
 const message=document.getElementById('atlasMessage');
 const fmt=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
@@ -662,12 +666,77 @@ function show(view){
  }
  const total=invoices.reduce((s,i)=>s+i.amount,0),attention=invoices.filter(review).length;
  if(view==='table'){
-  const rows=atlasFilter==='overdue'?invoices.filter(overdue):atlasFilter==='review'?invoices.filter(review):invoices;
+  const rows=invoices.filter(i=>{
+    if(atlasFilter==='overdue'&&!overdue(i))return false;
+    if(atlasFilter==='review'&&!review(i))return false;
+    if(invoiceStatusFilter!=='all'&&i.status!==invoiceStatusFilter)return false;
+    if(invoiceOverdueOnly&&!overdue(i))return false;
+    if(invoiceIssuesOnly&&i.issueCount<=0)return false;
+    const query=invoiceSearch.trim().toLowerCase();
+    if(query&&!(`${i.vendor} ${i.number}`).toLowerCase().includes(query))return false;
+    return true;
+   });
   const label=atlasFilter==='overdue'?'Overdue Invoices':atlasFilter==='review'?'Invoices Needing Review':'Invoice Register';
   const value=rows.reduce((sum,i)=>sum+i.amount,0);
   title.textContent=label;sub.textContent=rows.length+' of '+invoices.length+' invoices · Live Atlas data';
-  display.innerHTML='<h2>'+label+'</h2><div class="hint">Payment actions available for approved invoices · '+rows.length+' invoice(s) · '+fmt(value)+' total'+(atlasFilter!=='all'?' · <button type="button" id="atlasClearFilter" class="v16-clear">Show all invoices</button>':'')+'</div><div class="tablewrap"><table><thead><tr><th>Vendor</th><th>Invoice #</th><th>Amount</th><th>Status</th><th>Issues</th><th>Payment</th></tr></thead><tbody>'+(rows.length?rows.map(i=>'<tr><td>'+esc(i.vendor)+'</td><td>'+esc(i.number)+'</td><td class="money">'+fmt(i.amount)+'</td><td><span class="pill '+(review(i)?'warn':'')+'">'+esc(overdue(i)?'Overdue · '+statusLabel(i.status):statusLabel(i.status))+'</span></td><td>'+(i.issueCount>0?'<button type="button" class="v22-pay-btn" data-review-id="'+i.id+'">'+i.issueCount+' issue'+(i.issueCount===1?'':'s')+'</button>':'<span class="v22-not-ready">—</span>')+'</td><td>'+(i.status==='needs_review'?'<button type="button" class="v22-pay-btn" data-review-id="'+i.id+'">Review</button>':i.status==='approved'?'<button type="button" class="v22-pay-btn" data-pay-id="'+i.id+'">Mark as Paid</button>':i.status==='paid'?'<span class="v22-paid-label">✓ Paid</span>':'<span class="v22-not-ready">—</span>')+'</td></tr>').join(''):'<tr><td colspan="6">No matching invoices in the Atlas database.</td></tr>')+'</tbody></table></div>';
+  display.innerHTML='<h2>'+label+'</h2><div class="hint">Payment actions available for approved invoices · '+rows.length+' invoice(s) · '+fmt(value)+' total'+(atlasFilter!=='all'?' · <button type="button" id="atlasClearFilter" class="v16-clear">Show all invoices</button>':'')+'</div><div class="v23-filterbar" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:16px 0;padding:14px;border:1px solid rgba(220,242,255,.3);border-radius:14px;background:rgba(20,35,72,.3)"><input id="invoiceSearch" type="search" placeholder="Search vendor or invoice #" aria-label="Search invoices" value="'+esc(invoiceSearch)+'" style="flex:1;min-width:180px;padding:10px;border-radius:8px"><select id="invoiceStatusFilter" aria-label="Filter by status" style="padding:10px;border-radius:8px"><option value="all">All Statuses</option><option value="needs_review">Needs Review</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="paid">Paid</option></select><label><input type="checkbox" id="invoiceOverdueOnly"> Overdue only</label><label><input type="checkbox" id="invoiceIssuesOnly"> Issues only</label><button type="button" id="invoiceClearFilters" class="v16-clear">Clear Filters</button></div><div class="tablewrap"><table><thead><tr><th>Vendor</th><th>Invoice #</th><th>Amount</th><th>Status</th><th>Issues</th><th>Payment</th></tr></thead><tbody>'+(rows.length?rows.map(i=>'<tr><td>'+esc(i.vendor)+'</td><td>'+esc(i.number)+'</td><td class="money">'+fmt(i.amount)+'</td><td><span class="pill '+(review(i)?'warn':'')+'">'+esc(overdue(i)?'Overdue · '+statusLabel(i.status):statusLabel(i.status))+'</span></td><td>'+(i.issueCount>0?'<button type="button" class="v22-pay-btn" data-review-id="'+i.id+'">'+i.issueCount+' issue'+(i.issueCount===1?'':'s')+'</button>':'<span class="v22-not-ready">—</span>')+'</td><td>'+(i.status==='needs_review'?'<button type="button" class="v22-pay-btn" data-review-id="'+i.id+'">Review</button>':i.status==='approved'?'<button type="button" class="v22-pay-btn" data-pay-id="'+i.id+'">Mark as Paid</button>':i.status==='paid'?'<span class="v22-paid-label">✓ Paid</span>':'<span class="v22-not-ready">—</span>')+'</td></tr>').join(''):'<tr><td colspan="6">No matching invoices in the Atlas database.</td></tr>')+'</tbody></table></div>';
   const clear=document.getElementById('atlasClearFilter');if(clear)clear.addEventListener('click',()=>{atlasFilter='all';atlasContext=null;show('table');});
+
+   const searchInput=document.getElementById('invoiceSearch');
+   const statusInput=document.getElementById('invoiceStatusFilter');
+   const overdueInput=document.getElementById('invoiceOverdueOnly');
+   const issuesInput=document.getElementById('invoiceIssuesOnly');
+   const resetInput=document.getElementById('invoiceClearFilters');
+
+   if(searchInput){
+    searchInput.addEventListener('input',()=>{
+     const position=searchInput.selectionStart;
+     invoiceSearch=searchInput.value;
+     show('table');
+     const next=document.getElementById('invoiceSearch');
+     if(next){
+      next.focus();
+      try{next.setSelectionRange(position,position);}catch(e){}
+     }
+    });
+   }
+
+   if(statusInput){
+    statusInput.value=invoiceStatusFilter;
+    statusInput.addEventListener('change',()=>{
+     invoiceStatusFilter=statusInput.value;
+     show('table');
+    });
+   }
+
+   if(overdueInput){
+    overdueInput.checked=invoiceOverdueOnly;
+    overdueInput.addEventListener('change',()=>{
+     invoiceOverdueOnly=overdueInput.checked;
+     show('table');
+    });
+   }
+
+   if(issuesInput){
+    issuesInput.checked=invoiceIssuesOnly;
+    issuesInput.addEventListener('change',()=>{
+     invoiceIssuesOnly=issuesInput.checked;
+     show('table');
+    });
+   }
+
+   if(resetInput){
+    resetInput.addEventListener('click',()=>{
+     invoiceSearch='';
+     invoiceStatusFilter='all';
+     invoiceOverdueOnly=false;
+     invoiceIssuesOnly=false;
+     atlasFilter='all';
+     atlasContext=null;
+     show('table');
+    });
+   }
+
   if(atlasFilter==='overdue'){message.textContent='I found '+rows.length+' overdue invoice'+(rows.length===1?'':'s')+' totaling '+fmt(value)+'.';setActivity('Overdue invoices displayed',rows.length+' invoices · '+fmt(value));}
   else if(atlasFilter==='review'){message.textContent='I found '+rows.length+' invoice'+(rows.length===1?'':'s')+' needing review, totaling '+fmt(value)+'.';setActivity('Review queue displayed',rows.length+' invoices · '+fmt(value));}
   else {message.textContent='I opened your live invoice register.';setActivity('Invoice register opened',invoices.length+' live records');}
