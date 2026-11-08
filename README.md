@@ -2,7 +2,7 @@
 
 **Atlas AI Glass Studio** is a local-first, AI-assisted Accounts Payable application built with Python, FastAPI, SQLite, HTML, and JavaScript.
 
-V22 introduces a Liquid Glass dashboard for reviewing invoices, monitoring Accounts Payable activity, and recording payment information.
+V23 introduces a Liquid Glass dashboard for reviewing invoices, monitoring Accounts Payable activity, and recording payment information.
 
 > **Project status:** Working prototype for learning and demonstrations. Not a production accounting or payment-processing system.
 
@@ -68,7 +68,7 @@ Run from the repository root:
 
     python -m uvicorn backend.main:app --reload --port 8000
 
-Open the V22 dashboard:
+Open the V23 dashboard:
 
 **http://127.0.0.1:8000/glass-studio**
 
@@ -76,7 +76,7 @@ API documentation:
 
 **http://127.0.0.1:8000/docs**
 
-The application initializes its local SQLite database when it starts. Existing databases are updated with the V22 invoice columns when needed.
+The application initializes its local SQLite database when it starts. Existing databases are updated with the V23 invoice columns when needed.
 
 ## Demonstration workflow
 
