@@ -110,3 +110,5 @@ The repository contains application source code and sample-invoice generation sc
 Atlas AI Glass Studio demonstrates how AI-assisted document processing, invoice validation, workflow tracking, analytics, and a modern interface can support Accounts Payable work.
 
 **Built as a practical AI automation project and demonstration.**
+
+License: MIT
