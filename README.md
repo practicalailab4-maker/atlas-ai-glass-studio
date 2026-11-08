@@ -96,6 +96,36 @@ Invoice PDFs, local SQLite databases, API credentials, and virtual environments 
 
 The repository contains application source code and sample-invoice generation scripts. Generate test invoices locally rather than committing private invoice documents.
 
+### Optional: enable approve / reject
+
+The Approve and Reject controls in the Review view are switched off by default,
+so a demo can't change invoice decisions by accident. To turn them on, set this
+before starting the server:
+
+```bash
+export ATLAS_ENABLE_REVIEW_DECISIONS=true
+python -m uvicorn backend.main:app --reload --port 8000
+```
+
+Marking an invoice as paid only records the information. It does not move money.
+
+## Build on it for your own business
+
+Atlas is a small working example of AI acting as an extra helper in the back office. It is not a finished product. The parts you are most likely to change:
+
+| To change… | Edit |
+|---|---|
+| What the AI reads from each invoice | `backend/invoice_processor.py` (the extraction instructions) and `backend/invoice_schema.py` (the fields) |
+| What counts as a problem (totals, missing fields, your own rules) | `backend/invoice_validator.py`. This is plain code, with no AI involved. |
+| How the assistant answers questions | `backend/ap_assistant.py` |
+| Which issues get flagged for people | `backend/ap_issue_detector.py` |
+| The dashboard | `frontend/glass_studio_v23.html` |
+
+**Before you use it:**
+- You need your own OpenAI API key. Extraction calls use your account and cost money.
+- Use fictional or redacted invoices while you experiment. The demo data in this repo is artificial.
+- The AI reads the invoice, but a person should still approve it. Keep that step.
+
 ## Limitations
 
 - AI-generated invoice information requires human verification.
@@ -111,4 +141,6 @@ Atlas AI Glass Studio demonstrates how AI-assisted document processing, invoice 
 
 **Built as a practical AI automation project and demonstration.**
 
-License: MIT
+## License
+
+Released under the [MIT License](LICENSE). You are free to use, modify and build on this project, including for your own business.
